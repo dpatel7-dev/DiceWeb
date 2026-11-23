@@ -1,6 +1,6 @@
 # DiceWeb
 
-A whole computer in your browser, made of pixel worlds. On a Raspberry Pi or a PC it becomes [Dice](https://github.com/dpatel7-dev/Dice).
+A whole computer in your browser, made of pixel worlds. On a Raspberry Pi or a PC it becomes [Dice](https://github.com/dpatel7-dev/DiceOS).
 
 **Play it:** https://djp7.pythonanywhere.com/diceweb/
 
