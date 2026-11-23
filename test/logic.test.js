@@ -101,20 +101,12 @@ test('the die: opposite sides add up to seven, and it rests showing 1, 2 and 3',
   assert.ok(D3.ISO16.every((r) => r.length === 16) && D3.ISO16.length === 16);
 });
 
-test('the old built-in games stay gone; Dhruv\'s own games are in Games, and load nothing from elsewhere', () => {
+test('no games in DiceWeb', () => {
   const fs = require('fs'), path = require('path');
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  assert.ok(!/roll\.js|flight\.js/.test(html));
+  assert.ok(!/roll\.js|flight\.js|games\.js/.test(html));
+  assert.ok(!fs.existsSync(path.join(__dirname, '..', 'games')));
   assert.strictEqual(L.pigStep, undefined);
-  const dir = path.join(__dirname, '..', 'games'), games = fs.readdirSync(dir).filter((f) => f.endsWith('.html'));
-  assert.deepStrictEqual(games.sort(), ['algebradash.html', 'ballandwall.html', 'lunarlander.html', 'neonvoids.html']);
-  for (const f of games) {
-    const s = fs.readFileSync(path.join(dir, f), 'utf8');
-    assert.ok(!/<script[^>]+src=/i.test(s), f + ' loads no outside scripts');
-    assert.ok(!/fetch\(|XMLHttpRequest|WebSocket/.test(s), f + ' talks to nobody');
-  }
-  const app = fs.readFileSync(path.join(__dirname, '..', 'js', 'apps', 'games.js'), 'utf8');
-  for (const f of games) assert.ok(app.includes("'" + f.replace('.html', '') + "'"), f + ' is listed in the Games app');
 });
 
 test('Axiom sorts tasks into overdue, today, this week and tests, and keeps the old Calendar', () => {
@@ -169,7 +161,7 @@ test('the emulator\'s pretend computer loads before DiceWeb looks for a real one
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const at = (f) => html.indexOf('js/' + f);
   assert.ok(at('emu.js') > 0 && at('emu.js') < at('core.js') && at('core.js') < at('sys.js'));
-  for (const f of ['scape.js', 'skyline.js', 'apps/calculator.js', 'apps/axiom.js', 'apps/serenetab.js', 'apps/games.js', 'apps/clock.js', 'apps/monitor.js']) assert.ok(at(f) > 0, f);
+  for (const f of ['scape.js', 'skyline.js', 'apps/calculator.js', 'apps/axiom.js', 'apps/serenetab.js', 'apps/clock.js', 'apps/monitor.js']) assert.ok(at(f) > 0, f);
   const emu = fs.readFileSync(path.join(__dirname, '..', 'js', 'emu.js'), 'utf8');
   assert.match(emu, /if \(!\/\[\?&\]emu=1/); // it does nothing unless the emulator opened it
 });
@@ -209,4 +201,30 @@ test('SereneTab: the address bar and where pages open', () => {
   assert.strictEqual(L.weatherWords(63).kind, 'rain');
   assert.strictEqual(L.weatherWords(75).kind, 'snow');
   assert.strictEqual(L.weatherWords(95).text, 'Thunderstorm');
+});
+
+test('SereneTab remembers each site once, newest first, and suggests while you type', () => {
+  const L = require('../js/logic.js');
+  let h = [];
+  h = L.remember(h, { url: 'https://a.com', title: 'A', at: 1 });
+  h = L.remember(h, { url: 'https://en.wikipedia.org/wiki/Dice', title: 'Dice - Wikipedia', at: 2 });
+  h = L.remember(h, { url: 'https://a.com', title: 'A again', at: 3 });
+  assert.deepStrictEqual(h.map((x) => x.title), ['A again', 'Dice - Wikipedia']);
+  for (let i = 0; i < 20; i++) h = L.remember(h, { url: 'https://x.com/' + i, at: i }, 10);
+  assert.strictEqual(h.length, 10);
+  const s = L.suggest('wiki', [{ name: 'Wikipedia', url: 'https://en.wikipedia.org' }], [{ url: 'https://en.wikipedia.org/wiki/Dice', title: 'Dice - Wikipedia' }], 'ddg');
+  assert.deepStrictEqual(s.map((x) => x.kind), ['search', 'shortcut', 'history']);
+  assert.strictEqual(L.suggest('example.com', [], [], 'ddg')[0].kind, 'go');
+  assert.deepStrictEqual(L.suggest('  ', [], [], 'ddg'), []);
+});
+
+test('Dice Home, Dice Cloud and the product marks are all loaded', () => {
+  const fs = require('fs'), path = require('path');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  for (const f of ['js/home.js', 'js/cloud.js', 'css/home.css']) assert.ok(html.includes(f), f);
+  const cloud = fs.readFileSync(path.join(__dirname, '..', 'js', 'cloud.js'), 'utf8');
+  assert.match(cloud, /AES-GCM/); // locked before it leaves
+  assert.ok(!/fetch\([^)]*JSON\.stringify\(remote\)/.test(cloud), 'never sends the unlocked data');
+  const gfx = fs.readFileSync(path.join(__dirname, '..', 'js', 'gfx.js'), 'utf8');
+  for (const p of ['os', 'web', 'tv', 'home', 'cloud', 'emulator']) assert.match(gfx, new RegExp('\\b' + p + ": '#"));
 });
