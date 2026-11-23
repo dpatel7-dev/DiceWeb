@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Skylines</title>
+<style>body{margin:0;background:#222;color:#ddd;font:12px system-ui}.g{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:6px}canvas{width:100%;image-rendering:pixelated;display:block}figure{margin:0}figcaption{padding:3px 0 6px}</style></head><body>
+<div class="g" id="g"></div>
+<script src="../js/art.js"></script><script src="../js/catalog.js"></script><script src="../js/logic.js"></script><script src="../js/die3d.js"></script><script src="../js/gfx.js"></script><script src="../js/skyline.js"></script>
+<script>
+const G = window.DiceGfx, L = window.DiceLogic;
+const q = new URLSearchParams(location.search), only = q.get('city'), wx = q.get('wx') || 'clear';
+const W = +(q.get('w') || 300), H = +(q.get('h') || 190);
+// for each city, find a moment today when the sun is at a given height
+function when(C, target, pm) {
+  const base = new Date('2026-11-23T00:00:00Z').getTime();
+  let best = null, bd = 1e9;
+  for (let m = 0; m < 48 * 60; m += 5) {
+    const d = new Date(base + m * 60e3), s = L.sunPos(d, C.lat, C.lon);
+    const afternoon = ((s.az + 360) % 360) > 180;
+    if (pm !== undefined && afternoon !== pm) continue;
+    const e = Math.abs(s.alt - target);
+    if (e < bd) { bd = e; best = d; }
+  }
+  return best;
+}
+const g = document.getElementById('g');
+for (const id of Object.keys(G.Skyline.CITIES)) {
+  if (only && only !== id) continue;
+  const C = G.Skyline.CITIES[id];
+  for (const [label, alt, pm] of [['day', 28, false], ['sunset', 1, true], ['night', -30]]) {
+    const now = when(C, alt, pm), c = document.createElement('canvas'); c.width = W; c.height = H;
+    const s = new G.Skyline({ city: id, W, H, now, weather: { kind: wx } });
+    s.draw(c.getContext('2d'), 10, true);
+    const f = document.createElement('figure'); f.appendChild(c);
+    const cap = document.createElement('figcaption'); cap.textContent = C.name + ' ' + label + ' (' + L.cityTime(now, C.tz) + ', sun ' + s.sun.alt.toFixed(0) + '°, moon lit ' + s.moon.lit.toFixed(2) + ')';
+    f.appendChild(cap); g.appendChild(f);
+  }
+}
+</script></body></html>

@@ -1,0 +1,21 @@
+<!doctype html><html><body style="margin:0;background:#fff;font:12px sans-serif">
+<script src="../js/die3d.js"></script>
+<div id="out" style="display:flex;flex-wrap:wrap;gap:0"></div>
+<script>
+const out = document.getElementById('out');
+function show(img, scale, bg) {
+  const c = document.createElement('canvas'); c.width = img.w; c.height = img.h;
+  c.getContext('2d').putImageData(new ImageData(img.data, img.w, img.h), 0, 0);
+  const b = document.createElement('canvas'); b.width = img.w * scale; b.height = img.h * scale;
+  const g = b.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(c, 0, 0, b.width, b.height);
+  const wrap = document.createElement('div'); wrap.style.cssText = 'padding:8px;background:' + bg;
+  wrap.appendChild(b);
+  const r = document.createElement('canvas'); r.width = img.w; r.height = img.h; r.getContext('2d').drawImage(c, 0, 0); r.style.marginLeft = '6px';
+  wrap.appendChild(r);
+  out.appendChild(wrap);
+}
+for (const bg of ['#e9e6df', '#22232a']) {
+  for (const n of [16, 24, 32, 48]) show(DiceDie.iso(n, { outline: bg === '#22232a' ? [74, 74, 86] : null }), Math.round(160 / n), bg);
+  show(DiceDie.render(64, null, { ss: 3, outline: bg === '#22232a' ? [74, 74, 86] : null }), 2, bg);
+}
+</script></body></html>

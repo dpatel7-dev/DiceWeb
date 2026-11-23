@@ -87,13 +87,48 @@ test('the die: opposite sides add up to seven, and it rests showing 1, 2 and 3',
   for (let i = 0; i < img.data.length; i += 4) if (img.data[i + 3]) { if (img.data[i] < 70) dark++; else if (img.data[i] > 140) light++; }
   assert.ok(dark > 600, 'mostly black: ' + dark);
   assert.ok(light > 20 && light < dark / 4, 'some white pips: ' + light);
+  // the flat logo die: the hand-drawn 16 and the drawn bigger ones both have
+  // see-through corners, three greys for the sides and light dots
+  for (const n of [16, 24, 32]) {
+    const d = D3.iso(n);
+    assert.strictEqual(d.data.length, n * n * 4);
+    assert.strictEqual(d.data[3], 0, 'corner is clear at ' + n);
+    const greys = new Set(); let dots = 0;
+    for (let i = 0; i < d.data.length; i += 4) if (d.data[i + 3]) { if (d.data[i] > 150) dots++; else greys.add(d.data[i]); }
+    assert.ok(greys.size >= 3, 'three sides at ' + n);
+    assert.ok(dots >= 6, 'six dots at ' + n + ': ' + dots);
+  }
+  assert.ok(D3.ISO16.every((r) => r.length === 16) && D3.ISO16.length === 16);
 });
 
-test('no games are left in DiceWeb', () => {
+test('the old built-in games stay gone; Dhruv\'s own games are in Games, and load nothing from elsewhere', () => {
   const fs = require('fs'), path = require('path');
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.ok(!/roll\.js|flight\.js/.test(html));
   assert.strictEqual(L.pigStep, undefined);
+  const dir = path.join(__dirname, '..', 'games'), games = fs.readdirSync(dir).filter((f) => f.endsWith('.html'));
+  assert.deepStrictEqual(games.sort(), ['algebradash.html', 'ballandwall.html', 'lunarlander.html', 'neonvoids.html']);
+  for (const f of games) {
+    const s = fs.readFileSync(path.join(dir, f), 'utf8');
+    assert.ok(!/<script[^>]+src=/i.test(s), f + ' loads no outside scripts');
+    assert.ok(!/fetch\(|XMLHttpRequest|WebSocket/.test(s), f + ' talks to nobody');
+  }
+  const app = fs.readFileSync(path.join(__dirname, '..', 'js', 'apps', 'games.js'), 'utf8');
+  for (const f of games) assert.ok(app.includes("'" + f.replace('.html', '') + "'"), f + ' is listed in the Games app');
+});
+
+test('Axiom sorts tasks into overdue, today, this week and tests, and keeps the old Calendar', () => {
+  const t = [{ due: '2026-11-20', type: 'homework' }, { due: '2026-11-23', type: 'quiz', time: '09:00' }, { due: '2026-11-23', type: 'essay', time: '08:00' },
+    { due: '2026-11-30', type: 'essay' }, { due: '2026-12-10', type: 'test' }, { due: '2026-11-22', type: 'test', done: true }];
+  const b = L.planBuckets(t, '2026-11-23');
+  assert.deepStrictEqual(b.overdue.map((x) => x.due), ['2026-11-20']);
+  assert.deepStrictEqual(b.today.map((x) => x.type), ['essay', 'quiz'], 'earliest time first');
+  assert.deepStrictEqual(b.week.map((x) => x.due), ['2026-11-30']);
+  assert.deepStrictEqual(b.tests.map((x) => x.due), ['2026-11-23', '2026-12-10']);
+  assert.strictEqual(L.addDays('2026-12-30', 3), '2027-01-02');
+  const moved = L.eventsToTasks({ '2026-11-30': [{ text: 'Dentist', time: '15:30' }, { text: '' }] });
+  assert.strictEqual(moved.length, 1);
+  assert.deepStrictEqual([moved[0].title, moved[0].due, moved[0].time, moved[0].type], ['Dentist', '2026-11-30', '15:30', 'event']);
 });
 
 test('the page loads every script it needs, and they all exist', () => {
@@ -134,7 +169,44 @@ test('the emulator\'s pretend computer loads before DiceWeb looks for a real one
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const at = (f) => html.indexOf('js/' + f);
   assert.ok(at('emu.js') > 0 && at('emu.js') < at('core.js') && at('core.js') < at('sys.js'));
-  for (const f of ['scape.js', 'apps/calculator.js', 'apps/calendar.js', 'apps/clock.js', 'apps/monitor.js']) assert.ok(at(f) > 0, f);
+  for (const f of ['scape.js', 'skyline.js', 'apps/calculator.js', 'apps/axiom.js', 'apps/serenetab.js', 'apps/games.js', 'apps/clock.js', 'apps/monitor.js']) assert.ok(at(f) > 0, f);
   const emu = fs.readFileSync(path.join(__dirname, '..', 'js', 'emu.js'), 'utf8');
   assert.match(emu, /if \(!\/\[\?&\]emu=1/); // it does nothing unless the emulator opened it
+});
+
+test('SereneTab: the sun and moon over a city', () => {
+  const L = require('../js/logic.js');
+  // New York at solar noon on the longest day: the sun is due south, 90 - 40.7 + 23.4 degrees up
+  const noon = L.sunPos(new Date('2026-06-21T16:58:00Z'), 40.71, -74.01);
+  assert.ok(Math.abs(noon.alt - 72.7) < 1, 'noon height ' + noon.alt);
+  assert.ok(Math.abs(noon.az - 180) < 3, 'due south ' + noon.az);
+  // sunset in New York on 23 November is about 4:31 pm
+  assert.ok(Math.abs(L.sunPos(new Date('2026-11-23T21:31:00Z'), 40.71, -74.01).alt) < 1.5);
+  // the same moment it's the middle of the night in Dubai
+  assert.ok(L.sunPos(new Date('2026-11-23T21:31:00Z'), 25.2, 55.27).alt < -40);
+  const m = L.moonPos(new Date('2026-11-24T05:00:00Z'), 40.71, -74.01);
+  assert.ok(m.lit >= 0 && m.lit <= 1 && typeof m.waxing === 'boolean');
+  assert.match(L.cityTime(new Date('2026-11-23T21:30:00Z'), 'Europe/London'), /^9:30 pm$/);
+});
+
+test('SereneTab: the address bar and where pages open', () => {
+  const L = require('../js/logic.js');
+  assert.deepStrictEqual(L.omni('wikipedia.org', 'ddg'), { url: 'https://wikipedia.org', search: false });
+  assert.deepStrictEqual(L.omni('localhost:8123', 'ddg'), { url: 'http://localhost:8123', search: false });
+  assert.deepStrictEqual(L.omni('homeassistant.local:8123', 'ddg'), { url: 'http://homeassistant.local:8123', search: false });
+  assert.strictEqual(L.omni('how tall is the burj khalifa', 'wiki').url, 'https://en.wikipedia.org/w/index.php?search=how%20tall%20is%20the%20burj%20khalifa');
+  assert.ok(L.omni('javascript:alert(1)', 'ddg').search, 'other kinds of address are just searched for');
+  assert.strictEqual(L.omni('   ', 'ddg'), null);
+  const here = 'https://djp7.pythonanywhere.com/diceweb/';
+  assert.strictEqual(L.howToShow('https://github.com/dpatel7-dev', here).how, 'window');
+  assert.strictEqual(L.howToShow('https://en.wikipedia.org/wiki/Dice', here).how, 'frame');
+  assert.strictEqual(L.howToShow('https://djp7.pythonanywhere.com/dice', here).how, 'frame');
+  assert.strictEqual(L.howToShow('http://192.168.1.4:8123', here).how, 'window', 'a secure page cannot show an insecure one');
+  assert.strictEqual(L.howToShow('http://192.168.1.4:8123', 'http://localhost:8123/').how, 'frame');
+  const yt = L.howToShow('https://www.youtube.com/watch?v=dQw4w9WgXcQ', here);
+  assert.deepStrictEqual([yt.how, yt.url], ['frame', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ']);
+  assert.strictEqual(L.weatherWords(0).kind, 'clear');
+  assert.strictEqual(L.weatherWords(63).kind, 'rain');
+  assert.strictEqual(L.weatherWords(75).kind, 'snow');
+  assert.strictEqual(L.weatherWords(95).text, 'Thunderstorm');
 });
