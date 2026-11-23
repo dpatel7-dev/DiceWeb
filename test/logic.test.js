@@ -23,27 +23,6 @@ test('arrows move to the nearest thing in that direction', () => {
   assert.strictEqual(L.pickNext(from, all.filter((c) => c.id !== 'r1'), 'up'), null);
 });
 
-test('Roll: a one loses the turn, holding banks it, 50 wins', () => {
-  let s = { turn: 0, scores: [0, 0], who: 0 };
-  s = L.pigStep(s, 4); s = L.pigStep(s, 6);
-  assert.deepStrictEqual([s.turn, s.who], [10, 0]);
-  const bust = L.pigStep(s, 1);
-  assert.deepStrictEqual([bust.turn, bust.who, bust.bust, bust.scores[0]], [0, 1, true, 0]);
-  const held = L.pigHold(s);
-  assert.deepStrictEqual([held.scores[0], held.who], [10, 1]);
-  const near = { turn: 0, scores: [46, 0], who: 0 };
-  const won = L.pigStep(near, 5);
-  assert.strictEqual(won.won, 0);
-  assert.strictEqual(won.scores[0], 51);
-});
-
-test('Roll: friends hold when brave enough, and always take the win', () => {
-  assert.strictEqual(L.pigChoice('roomy', 12, 0, 0), 'hold'); // careful
-  assert.strictEqual(L.pigChoice('flash', 12, 0, 0), 'roll'); // brave
-  assert.strictEqual(L.pigChoice('flash', 5, 46, 0), 'hold'); // that's the game
-  assert.strictEqual(L.pigChoice('roomy', 15, 10, 45), 'roll'); // you're nearly there: be brave
-});
-
 test('the pretend disk: folders, files, paths', () => {
   const d = L.newDisk('dhruv');
   assert.ok(L.walk(d, '/home/dhruv/readme.txt'));
@@ -93,14 +72,28 @@ test('search finds apps by name and by what they do', () => {
   assert.strictEqual(L.score('zebra', pigeon), 0);
 });
 
-test('every achievement has a name, a how and a colour', () => {
-  const ids = new Set();
-  for (const a of L.ACHIEVEMENTS) {
-    assert.ok(a.id && a.name && a.how && /^#[0-9a-f]{6}$/i.test(a.c));
-    assert.ok(!ids.has(a.id)); ids.add(a.id);
-  }
-  assert.strictEqual(L.level(0), 1);
-  assert.strictEqual(L.level(5), 3);
+test('the die: opposite sides add up to seven, and it rests showing 1, 2 and 3', () => {
+  const D3 = require('../js/die3d.js');
+  const F = D3.FACES;
+  assert.strictEqual(F['+x'] + F['-x'], 7); assert.strictEqual(F['+y'] + F['-y'], 7); assert.strictEqual(F['+z'] + F['-z'], 7);
+  // the tumble ends exactly at rest
+  const end = D3.tumble(1);
+  D3.REST.forEach((row, i) => row.forEach((v, j) => assert.ok(Math.abs(v - end[i][j]) < 1e-9)));
+  // a 48-pixel die: see-through corners, a black body and light pips
+  const img = D3.render(48, null, { ss: 2 });
+  assert.strictEqual(img.data.length, 48 * 48 * 4);
+  assert.strictEqual(img.data[3], 0);
+  let dark = 0, light = 0;
+  for (let i = 0; i < img.data.length; i += 4) if (img.data[i + 3]) { if (img.data[i] < 70) dark++; else if (img.data[i] > 140) light++; }
+  assert.ok(dark > 600, 'mostly black: ' + dark);
+  assert.ok(light > 20 && light < dark / 4, 'some white pips: ' + light);
+});
+
+test('no games are left in DiceWeb', () => {
+  const fs = require('fs'), path = require('path');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.ok(!/roll\.js|flight\.js/.test(html));
+  assert.strictEqual(L.pigStep, undefined);
 });
 
 test('the page loads every script it needs, and they all exist', () => {
