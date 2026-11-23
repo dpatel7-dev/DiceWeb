@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- For working on the backgrounds: every world, by day and by night, moving. Open /test/scapes.html -->
+<meta charset="utf-8"><title>DiceWeb backgrounds</title>
+<style>body{margin:0;background:#222;display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:6px;padding:6px;font:12px system-ui;color:#ddd}
+canvas{width:100%;image-rendering:pixelated;display:block}figure{margin:0}figcaption{padding:2px 4px}</style>
+<script src="../js/art.js"></script><script src="../js/catalog.js"></script><script src="../js/die3d.js"></script><script src="../js/gfx.js"></script><script src="../js/scape.js"></script>
+<body>
+<script>
+const G = DiceGfx, list = [];
+const q = new URLSearchParams(location.search), only = q.get('w'), night = q.get('night');
+const W = +(q.get('W') || 420), H = +(q.get('H') || 262);
+for (const n of [0, 1]) for (const w of G.Scape.NAMES) {
+  if (only && w !== only) continue; if (night !== null && +night !== n) continue;
+  const f = document.createElement('figure'), c = G.canvas(W, H); f.append(c, Object.assign(document.createElement('figcaption'), { textContent: w + (n ? ' night' : ' day') }));
+  document.body.append(f); list.push({ s: new G.Scape({ world: w, night: !!n, W, H, seed: 't' }), g: c.getContext('2d') });
+}
+const still = q.get('still') !== null;
+function frame(now) { for (const x of list) x.s.draw(x.g, now / 1000, still); if (!still) requestAnimationFrame(frame); }
+requestAnimationFrame(frame);
+</script>

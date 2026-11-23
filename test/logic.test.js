@@ -104,3 +104,37 @@ test('the page loads every script it needs, and they all exist', () => {
   for (const s of srcs) assert.ok(fs.existsSync(path.join(__dirname, '..', s)), s);
   for (const css of [...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map((m) => m[1])) assert.ok(fs.existsSync(path.join(__dirname, '..', css)), css);
 });
+
+test('the calculator works sums out itself, the way people write them', () => {
+  const sum = (s) => L.calcText(L.calc(s));
+  assert.strictEqual(sum('2+3×4'), '14');
+  assert.strictEqual(sum('(2+3)×4'), '20');
+  assert.strictEqual(sum('10÷4'), '2.5');
+  assert.strictEqual(sum('−5+2'), '-3');
+  assert.strictEqual(sum('50%'), '0.5');
+  assert.strictEqual(sum('0.1+0.2'), '0.3');
+  assert.strictEqual(sum('1234567×10'), '12,345,670');
+  assert.strictEqual(sum('1÷0'), 'Can\'t divide by zero');
+  assert.throws(() => L.calc('2×'));
+  assert.throws(() => L.calc('alert(1)'));
+});
+
+test('the calendar shows six weeks, Sunday first, around the month', () => {
+  const g = L.monthGrid(2026, 10); // November 2026 starts on a Sunday
+  assert.strictEqual(g.length, 42);
+  assert.strictEqual(g[0].key, '2026-11-01');
+  assert.strictEqual(g.filter((c) => c.inMonth).length, 30);
+  const feb = L.monthGrid(2027, 1); // February 2027 starts on a Monday
+  assert.strictEqual(feb[0].key, '2027-01-31');
+  assert.strictEqual(feb[1].key, '2027-02-01');
+});
+
+test('the emulator\'s pretend computer loads before DiceWeb looks for a real one', () => {
+  const fs = require('fs'), path = require('path');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const at = (f) => html.indexOf('js/' + f);
+  assert.ok(at('emu.js') > 0 && at('emu.js') < at('core.js') && at('core.js') < at('sys.js'));
+  for (const f of ['scape.js', 'apps/calculator.js', 'apps/calendar.js', 'apps/clock.js', 'apps/monitor.js']) assert.ok(at(f) > 0, f);
+  const emu = fs.readFileSync(path.join(__dirname, '..', 'js', 'emu.js'), 'utf8');
+  assert.match(emu, /if \(!\/\[\?&\]emu=1/); // it does nothing unless the emulator opened it
+});
