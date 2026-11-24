@@ -228,3 +228,34 @@ test('Dice Home, Dice Cloud and the product marks are all loaded', () => {
   const gfx = fs.readFileSync(path.join(__dirname, '..', 'js', 'gfx.js'), 'utf8');
   for (const p of ['os', 'web', 'tv', 'home', 'cloud', 'emulator']) assert.match(gfx, new RegExp('\\b' + p + ": '#"));
 });
+
+test('DiceTV: Watch tiles, web addresses, the sleep timer and backups', () => {
+  assert.strictEqual(L.monogram('Netflix'), 'N');
+  assert.strictEqual(L.monogram('Disney+'), 'D+');
+  assert.strictEqual(L.monogram('Prime Video'), 'PV');
+  assert.strictEqual(L.cleanUrl('crunchyroll.com'), 'https://crunchyroll.com/');
+  assert.strictEqual(L.cleanUrl('https://www.twitch.tv/directory'), 'https://www.twitch.tv/directory');
+  for (const bad of ['', 'hello', 'javascript:alert(1)', 'file:///etc/passwd', 'two words.com']) assert.strictEqual(L.cleanUrl(bad), null, bad);
+  assert.deepStrictEqual([0, 15, 30, 60, 90].map(L.nextSleep), [15, 30, 60, 90, 0]);
+  assert.ok(L.readBackup(JSON.stringify({ kind: 'dice-backup', v: 1, state: { name: 'Dhruv' } })));
+  for (const bad of ['nope', '{}', JSON.stringify({ kind: 'dice-backup', state: [] }), JSON.stringify({ kind: 'other', state: {} })]) assert.strictEqual(L.readBackup(bad), null);
+});
+
+test('DiceTV keeps to this screen: no friends, no store, no performance tab', () => {
+  const fs = require('fs'), path = require('path');
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const html = read('index.html'), shell = read('js/shell.js'), core = read('js/core.js');
+  for (const f of ['js/tools.js', 'js/tv.js']) assert.ok(html.includes(f), f);
+  assert.ok(html.indexOf('js/tv.js') < html.indexOf('Dice.shell.start()'), 'tv.js loads before DiceTV starts');
+  assert.ok(!/tb-friends|\['friends', 'friends'|\['perf', 'chart'|\['store', 'Store', 'store'/.test(shell));
+  assert.ok(!/For your computer/.test(shell));
+  assert.match(shell, /D\.tv\.rows\(page\)/);
+  assert.match(core, /!Dice\.state\.dnd \|\| n\.urgent/); // Do not disturb keeps pop-ups away
+  const tv = read('js/tv.js');
+  assert.ok(!/<img|logo\.(png|svg)/i.test(tv), 'Watch tiles are letters, not logos');
+});
+
+test('Watch can open things on your own network too', () => {
+  assert.strictEqual(L.cleanUrl('192.168.1.20:32400/web'), 'http://192.168.1.20:32400/web');
+  assert.strictEqual(L.cleanUrl('jellyfin.local:8096'), 'http://jellyfin.local:8096/');
+});
