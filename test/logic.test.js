@@ -259,3 +259,66 @@ test('Watch can open things on your own network too', () => {
   assert.strictEqual(L.cleanUrl('192.168.1.20:32400/web'), 'http://192.168.1.20:32400/web');
   assert.strictEqual(L.cleanUrl('jellyfin.local:8096'), 'http://jellyfin.local:8096/');
 });
+
+test('the Dice Bar: units, timers and quick tasks', () => {
+  assert.strictEqual(L.convert('5 km in miles').text, '5 km = 3.10686 mi');
+  assert.strictEqual(L.convert('72 f to c').text, '72 °F = 22.2222 °C');
+  assert.strictEqual(Math.round(L.convert('3 cups in ml').value), 710);
+  assert.strictEqual(L.convert('2 gb in mb').value, 2000);
+  assert.strictEqual(L.convert('5 km in pounds'), null); // can't
+  assert.strictEqual(L.convert('hello'), null);
+  assert.strictEqual(L.parseTimer('timer 10'), 600000);
+  assert.strictEqual(L.parseTimer('set a timer for 90 seconds'), 90000);
+  assert.strictEqual(L.parseTimer('timer 1.5 hours'), 5400000);
+  assert.strictEqual(L.parseTimer('timer'), 0);
+  // 2026-11-24 is a Tuesday
+  assert.deepStrictEqual(L.parseTask('todo read chapter 7 friday', '2026-11-24'), { title: 'Read chapter 7', due: '2026-11-27' });
+  assert.deepStrictEqual(L.parseTask('task lab report tomorrow', '2026-11-24'), { title: 'Lab report', due: '2026-11-25' });
+  assert.deepStrictEqual(L.parseTask('remind me to email Ms. Lee', '2026-11-24'), { title: 'Email Ms. Lee', due: '2026-11-24' });
+  assert.deepStrictEqual(L.parseTask('todo quiz review tuesday', '2026-11-24'), { title: 'Quiz review', due: '2026-12-01' }); // next Tuesday, not today
+  assert.strictEqual(L.parseTask('just words', '2026-11-24'), null);
+});
+
+test('Axiom: when classes meet, and study time', () => {
+  const C = [{ id: 'b', name: 'Biology', days: [1, 2, 4], start: '09:00', end: '09:50' }, { id: 'h', name: 'History', days: [2], start: '08:00', end: '08:50' }, { id: 'x', name: 'No times' }];
+  assert.deepStrictEqual(L.classesOn(C, '2026-11-24').map((s) => s.cls.id), ['h', 'b']); // Tuesday
+  assert.deepStrictEqual(L.classesOn(C, '2026-11-25').map((s) => s.cls.id), []); // Wednesday
+  const n = L.classNow(C, new Date(2026, 10, 24, 8, 30));
+  assert.strictEqual(n.now.cls.id, 'h'); assert.strictEqual(n.next.cls.id, 'b');
+  const w = L.studyWeek([{ day: '2026-11-24', mins: 25, classId: 'b' }, { day: '2026-11-20', mins: 50, classId: 'b' }, { day: '2026-11-01', mins: 99 }], '2026-11-24');
+  assert.strictEqual(w.total, 75); assert.strictEqual(w.by.b, 75);
+});
+
+test('the desktop: snapping windows and the overview grid', () => {
+  const area = { w: 1600, h: 900 };
+  assert.deepStrictEqual(L.snapRect('left', area, 0), { x: 0, y: 0, w: 800, h: 900 });
+  assert.deepStrictEqual(L.snapRect('br', area, 0), { x: 800, y: 450, w: 800, h: 450 });
+  assert.deepStrictEqual(L.snapRect('r23', area, 0), { x: 533, y: 0, w: 1067, h: 900 });
+  assert.strictEqual(L.edgeZone(3, 400, area), 'left');
+  assert.strictEqual(L.edgeZone(1597, 880, area), 'br');
+  assert.strictEqual(L.edgeZone(800, 2, area), 'top');
+  assert.strictEqual(L.edgeZone(800, 400, area), null);
+  const g = L.fitGrid(5, 1600, 800);
+  assert.strictEqual(g.length, 5);
+  g.forEach((c) => { assert.ok(c.x >= 0 && c.y >= 0 && c.x + c.w <= 1600 && c.y + c.h <= 800); });
+});
+
+test('TV remotes: their keys become DiceTV buttons', () => {
+  assert.strictEqual(L.remoteKey('BrowserBack'), 'b');
+  assert.strictEqual(L.remoteKey('MediaPlayPause'), 'play');
+  assert.strictEqual(L.remoteKey('ColorF0Red'), 'red');
+  assert.strictEqual(L.remoteKey('ChannelUp'), 'rb');
+  assert.strictEqual(L.remoteKey('a'), null);
+});
+
+test('1.6: remotes, Channels, Weather, Photos, Sketch and the desktop extras are all loaded', () => {
+  const fs = require('fs'), path = require('path');
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const html = read('index.html'), cat = read('js/catalog.js'), css = read('css/dice.css');
+  for (const f of ['js/remote.js', 'js/deskplus.js', 'js/apps/channels.js', 'js/apps/weather.js', 'js/apps/photos.js', 'js/apps/sketch.js']) assert.ok(html.includes(f), f);
+  assert.ok(html.indexOf('js/remote.js') < html.indexOf('Dice.shell.start()'));
+  for (const id of ['channels', 'weather', 'photos', 'sketch']) { assert.ok(cat.includes("id: '" + id + "'"), id); assert.ok(read('js/apps/' + id + '.js').includes("id: '" + id + "'"), id + ' registers'); }
+  // numbers read clearly: the digits font sits in front of the pixel font
+  assert.match(css, /@font-face \{ font-family: "Dice Numbers";[^}]*unicode-range: U\+0030-0039/);
+  assert.match(css, /--pixel: "Dice Numbers", "Pixelify Sans"/);
+});
