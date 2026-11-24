@@ -249,10 +249,12 @@ test('DiceTV keeps to this screen: no friends, no store, no performance tab', ()
   assert.ok(html.indexOf('js/tv.js') < html.indexOf('Dice.shell.start()'), 'tv.js loads before DiceTV starts');
   assert.ok(!/tb-friends|\['friends', 'friends'|\['perf', 'chart'|\['store', 'Store', 'store'/.test(shell));
   assert.ok(!/For your computer/.test(shell));
-  assert.match(shell, /D\.tv\.rows\(page\)/);
+  assert.match(shell, /D\.tv\.rows\(page\.querySelector\('\.tvb-ground'\)\)/);
   assert.match(core, /!Dice\.state\.dnd \|\| n\.urgent/); // Do not disturb keeps pop-ups away
   const tv = read('js/tv.js');
-  assert.ok(!/<img|logo\.(png|svg)/i.test(tv), 'Watch tiles are letters, not logos');
+  // Watch tiles show each site's own icon, fetched from the internet as they appear: no logo is drawn or kept here
+  assert.ok(!/logo\.(png|svg)|data:image\/(png|svg)/i.test(tv), 'no logos kept in DiceWeb');
+  assert.ok(/s2\/favicons\?domain=/.test(tv), 'icons come from the sites');
 });
 
 test('Watch can open things on your own network too', () => {
@@ -343,4 +345,18 @@ test('1.7: Dice Cloud, Code and the air mouse are loaded, and nothing clashes', 
   assert.ok(read('js/apps/code.js').includes("id: 'code'"));
   // every script on the page parses
   for (const m of html.matchAll(/<script src="([^"]+)"/g)) assert.doesNotThrow(() => new Function(read(m[1])), m[1]);
+});
+
+test('1.8: news channels are real YouTube channel IDs, and the new Home is loaded', () => {
+  const fs = require('fs'), path = require('path');
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const ch = read('js/apps/channels.js');
+  const ids = [...ch.matchAll(/yt: '([^']+)'/g)].map((m) => m[1]);
+  assert.ok(ids.length >= 8, 'at least eight news channels');
+  ids.forEach((id) => assert.match(id, /^UC[\w-]{22}$/, id));
+  assert.strictEqual(new Set(ids).size, ids.length, 'no channel twice');
+  assert.ok(ch.includes('embed/live_stream?channel='), 'played in YouTube\'s own player');
+  const shell = read('js/shell.js'), tv = read('js/tv.js');
+  assert.ok(shell.includes('tvb-board') && tv.includes('TV.now = function') && tv.includes('function newsRow'));
+  assert.ok(read('js/remote.js').includes('D.keyFirst.push'), 'a real keyboard puts the on-screen one away');
 });
