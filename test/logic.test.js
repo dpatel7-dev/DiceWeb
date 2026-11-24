@@ -322,3 +322,25 @@ test('1.6: remotes, Channels, Weather, Photos, Sketch and the desktop extras are
   assert.match(css, /@font-face \{ font-family: "Dice Numbers";[^}]*unicode-range: U\+0030-0039/);
   assert.match(css, /--pixel: "Dice Numbers", "Pixelify Sans"/);
 });
+
+test('1.7: air mice: power, search and the rest of their keys', () => {
+  assert.strictEqual(L.remoteKey('Power'), 'power');
+  assert.strictEqual(L.remoteKey('PowerOff'), 'power');
+  assert.strictEqual(L.remoteKey('BrowserHome'), 'home');
+  assert.strictEqual(L.remoteKey('ContextMenu'), 'menu');
+  assert.strictEqual(L.remoteKey('BrowserSearch'), 'search');
+  assert.strictEqual(L.remoteKey('AudioVolumeUp'), 'volup');
+});
+
+test('1.7: Dice Cloud, Code and the air mouse are loaded, and nothing clashes', () => {
+  const fs = require('fs'), path = require('path');
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const html = read('index.html'), cat = read('js/catalog.js');
+  for (const f of ['js/airmouse.js', 'js/cloud.js', 'js/apps/cloudapp.js', 'js/apps/code.js']) assert.ok(html.includes(f), f);
+  assert.ok(html.indexOf('js/apps/files.js') < html.indexOf('js/apps/code.js'), 'Code uses the file source Files shares');
+  for (const id of ['cloud', 'code']) assert.ok(cat.includes("id: '" + id + "'"), id);
+  assert.ok(read('js/apps/cloudapp.js').includes("id: 'cloud'"));
+  assert.ok(read('js/apps/code.js').includes("id: 'code'"));
+  // every script on the page parses
+  for (const m of html.matchAll(/<script src="([^"]+)"/g)) assert.doesNotThrow(() => new Function(read(m[1])), m[1]);
+});
