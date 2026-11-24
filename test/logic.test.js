@@ -360,3 +360,26 @@ test('1.8: news channels are real YouTube channel IDs, and the new Home is loade
   assert.ok(shell.includes('tvb-board') && tv.includes('TV.now = function') && tv.includes('function newsRow'));
   assert.ok(read('js/remote.js').includes('D.keyFirst.push'), 'a real keyboard puts the on-screen one away');
 });
+
+test('1.9: the ground strip, small motions that respect Less motion, and the lock screen', () => {
+  const fs = require('fs'), path = require('path');
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const css = read('css/dice.css'), shell = read('js/shell.js'), tv = read('js/tv.js'), ex = read('js/extras.js');
+  assert.ok(shell.includes('tvb-strip') && tv.includes('TV.strip = function'), 'the ground is its own strip');
+  // every new keyframe is used only inside the motion guard
+  for (const k of ['dpress', 'dblockin', 'dchan', 'dshake']) {
+    assert.ok(css.includes('@keyframes ' + k), k);
+    const uses = css.split('\n').filter((l) => l.includes(k) && !l.includes('@keyframes'));
+    assert.ok(uses.length > 0, k + ' is used');
+    uses.forEach((l) => assert.ok(l.includes('html:not([data-motion=less])'), k + ' respects Less motion'));
+    const at = css.indexOf(uses[0].trim()), open = css.lastIndexOf('@media (prefers-reduced-motion: no-preference)', at);
+    assert.ok(uses[0].includes('prefers-reduced-motion: no-preference') || open >= 0 && css.slice(open, at).split('{').length - css.slice(open, at).split('}').length >= 1, k + ' is inside the reduced-motion guard');
+  }
+  // nothing new bounces up and down
+  const kf = css.match(/@keyframes (dpress|dblockin|dfade|dtick|doskin|dchan|dbarin|dpipin|dshake|demin)[^}]*\}[^}]*\}/g) || [];
+  kf.forEach((k) => assert.ok(!/translateY\(-/.test(k), 'no bouncing up: ' + k.slice(0, 30)));
+  assert.ok(ex.includes('D.lock = ') && ex.includes('hasPin'), 'the lock screen');
+  assert.ok(!/localStorage\.setItem\([^)]*pin/i.test(ex), 'the PIN is not kept as plain text');
+  assert.ok(read('index.html').includes('js/extras.js'));
+  assert.ok(read('js/apps/channels.js').includes("a === 'yellow'"), 'last channel');
+});
