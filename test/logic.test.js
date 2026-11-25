@@ -383,3 +383,77 @@ test('1.9: the ground strip, small motions that respect Less motion, and the loc
   assert.ok(read('index.html').includes('js/extras.js'));
   assert.ok(read('js/apps/channels.js').includes("a === 'yellow'"), 'last channel');
 });
+
+// ---- 2.0: Dice Cloud files, the Dice disk, the Store and DiceGaming ----------------------------------
+function loadInto(file, Dice) {
+  const vm = require('vm'), fs = require('fs'), path = require('path');
+  const window = { Dice, DICE_SYS: null, indexedDB: null };
+  const ctx = vm.createContext({ window, crypto: globalThis.crypto, setTimeout: () => 0, clearTimeout: () => 0, URL, URLSearchParams, Blob, File, TextEncoder, btoa, atob, navigator: {}, console });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), ctx);
+  return Dice;
+}
+test('2.0: Dice Cloud files are locked part by part, each file with its own key', async () => {
+  const D = loadInto('js/drive.js', { cloud: { on: () => true, me: () => ({ name: 'Laptop' }), soon() {}, shares: () => true }, state: {}, on() {}, emit() {}, save() {}, origin: 'https://example.test' });
+  const F = D.drive;
+  const raw = globalThis.crypto.getRandomValues(new Uint8Array(32));
+  const key = await globalThis.crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+  const plain = new TextEncoder().encode('milk, eggs, bread');
+  const sealed = await F.seal(key, plain);
+  assert.equal(sealed.length, 12 + plain.length + 16);
+  assert.ok(!Buffer.from(sealed).toString().includes('milk'));
+  assert.equal(new TextDecoder().decode(await F.unseal(key, sealed)), 'milk, eggs, bread');
+  const other = await globalThis.crypto.subtle.importKey('raw', new Uint8Array(32), 'AES-GCM', false, ['decrypt']);
+  await assert.rejects(F.unseal(other, sealed));
+  assert.equal(F.CHUNK, 4000000);
+  // the list of files: folders come from where files are, and names are tidy
+  D.state.drive = { items: { 'f:a1': { name: 'sunset.jpg', dir: '/Photos/Trip', size: 10, type: 'image/jpeg', parts: ['x'] }, 'f:b2': { name: 'list.txt', dir: '/', size: 3, parts: ['y'] }, 'd:/Music': { at: 1 } } };
+  assert.deepEqual(F.folders(), ['/', '/Music', '/Photos', '/Photos/Trip']);
+  assert.deepEqual(F.list('/').map((x) => x.name), ['Music', 'Photos', 'list.txt']);
+  assert.equal(F.at('/Photos/Trip/sunset.jpg').id, 'a1');
+  assert.equal(F.kind(F.item('a1')), 'photo');
+  assert.equal(F.norm('/../Photos//./Trip/'), '/Photos/Trip');
+  assert.equal(F.typeOf('song.mp3'), 'audio/mpeg');
+  F.rename('/Photos', 'Holiday');
+  assert.equal(F.item('a1').dir, '/Holiday/Trip');
+  assert.throws(() => F.mkdir('/Music'), /already/);
+  const link = (D.state.drive.items['f:b2'].key = 'abc', F.link('b2'));
+  assert.ok(link.startsWith('https://example.test/dice/get#') && link.includes('k=abc'));
+});
+test('2.0: the Dice disk keeps real files, with a Trash that remembers where things were', async () => {
+  const D = { L, state: { disk: L.newDisk('me') }, home: () => '/home/me', save() {}, emit() {}, drive: null };
+  loadInto('js/fs.js', D);
+  const FS = D.disk;
+  FS.tidyHome();
+  assert.deepEqual((await FS.list('~')).items.filter((x) => x.dir).map((x) => x.name).sort(), ['Documents', 'Downloads', 'Music', 'Pictures', 'Videos', 'music', 'notes']);
+  await FS.write('~/Documents/essay.md', '# Hi');
+  assert.equal(L.walk(D.state.disk, '/home/me/Documents/essay.md').text, '# Hi'); // small text stays readable by Terminal and Notes
+  FS.mkdir('~/Documents/School');
+  assert.equal(FS.copy('~/Documents/essay.md', '~/Documents'), 'essay copy.md');
+  assert.equal(FS.move('~/Documents/essay copy.md', '~/Documents/School'), 'essay copy.md');
+  assert.throws(() => FS.move('~/Documents', '~/Documents/School'), /inside itself/);
+  FS.rename('~/Documents/School/essay copy.md', 'draft.md');
+  const name = FS.trash('~/Documents/School/draft.md');
+  assert.equal(FS.trashList()[0].from, '~/Documents/School/draft.md');
+  assert.equal((await FS.list('~')).items.some((x) => x.name === '.Trash'), false);
+  assert.equal(FS.restore(name), '~/Documents/School/draft.md');
+  FS.trash('~/Documents/School');
+  FS.trash('~/Documents/essay.md');
+  assert.equal(FS.restore('essay.md'), '~/Documents/essay.md');
+  assert.deepEqual(FS.find('draft').map((x) => x.path), []);
+  assert.equal(FS.restore('School'), '~/Documents/School');
+  assert.deepEqual(FS.find('draft').map((x) => x.path), ['~/Documents/School/draft.md']);
+  assert.throws(() => FS.trash('~'), /home folder/);
+});
+test('2.0: the Store, Files and DiceGaming', () => {
+  const fs = require('fs'), path = require('path');
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const store = read('js/store.js'), files = read('js/apps/files.js'), gaming = read('js/apps/gaming.js'), html = read('index.html');
+  const ids = [...store.matchAll(/\['([a-z][\w-]*(?:\.[\w-]+){2,})', '/g)].map((m) => m[1]);
+  assert.ok(ids.length >= 15 && ids.includes('org.videolan.VLC') && ids.includes('com.moonlight_stream.Moonlight'));
+  ids.forEach((id) => assert.match(id, /^[A-Za-z][\w-]*(\.[\w-]+){2,}$/));
+  assert.ok(!/data:image\/png;base64/.test(store + gaming), 'no stored logos: icons come from the app (or the site) when shown');
+  ['https://www.xbox.com/play', 'https://play.geforcenow.com/', 'https://luna.amazon.com/'].forEach((u) => assert.ok(gaming.includes("'" + u + "'"), u));
+  assert.ok(!/user-?agent/i.test(gaming), 'cloud services open as themselves');
+  ["e.key === 'Delete'", "e.key === 'F2'", "k === 'v'", 'dragstart', 'contextmenu', "'trash:'"].forEach((s) => assert.ok(files.includes(s), s));
+  ['js/drive.js', 'js/fs.js', 'js/store.js', 'js/apps/gaming.js'].forEach((f) => assert.ok(html.includes(f), f));
+});
