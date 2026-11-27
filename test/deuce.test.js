@@ -68,6 +68,12 @@ test('switching HDMI inputs', () => {
   assert.strictEqual(U('back to dice').dice, true);
   // but "switch to netflix" is the app
   assert.strictEqual(U('switch to netflix').kind, 'app');
+  // a PC's screen: its other inputs, and names you gave them
+  assert.strictEqual(U('switch to my work laptop').name, 'work laptop');
+  assert.strictEqual(U('switch the screen to displayport').name, 'displayport');
+  assert.strictEqual(U('switch to usb c').name, 'usb c');
+  assert.deepStrictEqual([B.understand('switch to the kitchen one', NOV, { inputs: ['Kitchen one'] }).kind, B.understand('switch to the kitchen one', NOV, { inputs: ['Kitchen one'] }).name], ['input', 'kitchen one']);
+  assert.notStrictEqual(U('switch to the kitchen one').kind, 'input');
 });
 
 test('the TV itself: sound, playing, power', () => {
