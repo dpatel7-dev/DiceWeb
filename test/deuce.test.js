@@ -149,3 +149,55 @@ test('a game from ESPN\'s scoreboard: which one, and where it\'s on', () => {
   assert.strictEqual(B.netOf('TNT'), 'tnt');
   assert.strictEqual(B.netOf('Peacock'), 'peacock');
 });
+
+test('Deuce on a PC: reminders, the Notebook, the computer and questions', () => {
+  const FRI = new Date(2026, 10, 27, 13, 30); // a Friday afternoon
+  const at = (s) => { const r = U(s, FRI); return r.at ? new Date(r.at) : null; };
+  let r = U('remind me to call mom at 6', FRI);
+  assert.strictEqual(r.kind, 'remind');
+  assert.strictEqual(r.what, 'call mom');
+  assert.strictEqual(at('remind me to call mom at 6').getHours(), 18);   // 6 in the morning has gone: this evening
+  assert.strictEqual(at('remind me at 9 am to call mom').getDate(), 28);  // tomorrow morning
+  assert.strictEqual(at('remind me in 20 minutes to check the oven') - FRI, 20 * 60000);
+  assert.strictEqual(U('remind me in 20 minutes to check the oven', FRI).what, 'check the oven');
+  assert.strictEqual(at('remind me tomorrow at 9 to take out the trash').getDate(), 28);
+  assert.strictEqual(U('remind me tonight to pack my bag', FRI).what, 'pack my bag');
+  assert.strictEqual(at('remind me tonight to pack my bag').getHours(), 20);
+  assert.strictEqual(at('remind me to study on monday').getDay(), 1);
+  assert.strictEqual(U('remind me to drink water', FRI).at, null);        // Deuce asks when
+  // the Notebook
+  assert.strictEqual(U('remember that my locker is 42').fact, 'my locker is 42');
+  assert.strictEqual(U('remember my password is hunter2').secret, true); // passwords aren't kept
+  assert.strictEqual(U('what do you know about me').kind, 'notebook');
+  assert.strictEqual(U('forget that my locker is 42').fact, 'my locker is 42');
+  assert.strictEqual(U('forget everything').fact, '');
+  assert.strictEqual(U('my name is dhruv').name, 'Dhruv');
+  assert.strictEqual(U('note buy milk').note, 'buy milk');
+  // the computer
+  assert.deepStrictEqual([U('turn on dark mode').what, U('turn on dark mode').value], ['look', 'night']);
+  assert.strictEqual(U('night light off').value, false);
+  assert.deepStrictEqual([U('turn on traced mode').what, U('turn on traced mode').value], ['looks', true]);
+  assert.deepStrictEqual([U('traced mode off').what, U('traced mode off').value], ['looks', false]);
+  assert.strictEqual(U('turn on heavenly looks').what, 'looks'); // its old name
+  assert.strictEqual(U('start traced mode').what, 'looks'); // not a mode called Traced
+  assert.strictEqual(U('set brightness to 50').value, 0.5);
+  assert.strictEqual(U('do not disturb on').what, 'quiet');
+  assert.strictEqual(U('start focus mode').name, 'focus');
+  assert.strictEqual(U('time to study').name, 'school');
+  assert.strictEqual(U('end focus mode').off, true);
+  assert.strictEqual(U('end focus mode').name, 'focus');
+  assert.strictEqual(U('dark mode').kind, 'setting');                    // not a mode called "dark"
+  assert.strictEqual(U('how many ads did you block today').act, 'count');
+  assert.strictEqual(U('turn off the ad blocker').act, 'off');
+  assert.strictEqual(U('take a screenshot').kind, 'shot');
+  assert.strictEqual(U('how was my week').kind, 'week');
+  // the web
+  assert.strictEqual(U('open github.com').url, 'https://github.com');
+  assert.strictEqual(U('open youtube').kind, 'app');                     // the app, not a website
+  assert.strictEqual(U('search the web for best pizza in newark').q, 'best pizza in newark');
+  assert.strictEqual(U('search youtube for cats').kind, 'search');       // still YouTube's search
+  assert.strictEqual(U('why is the sky blue').kind, 'ask');
+  assert.strictEqual(U('who wrote hamlet?').q, 'who wrote hamlet?');
+  assert.strictEqual(U('whats the weather').kind, 'weather');            // Deuce knows that one itself
+  assert.strictEqual(U('blorp').kind, 'unknown');
+});
