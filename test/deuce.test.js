@@ -201,3 +201,48 @@ test('Deuce on a PC: reminders, the Notebook, the computer and questions', () =>
   assert.strictEqual(U('whats the weather').kind, 'weather');            // Deuce knows that one itself
   assert.strictEqual(U('blorp').kind, 'unknown');
 });
+
+// ---- 2.4.0: sums, other places' time, countdowns, briefings, two things at once ----
+const C = require('../js/deucecalc.js');
+
+test('the calculator works sums and conversions out exactly', () => {
+  const v = (s) => C.eval(s).value;
+  assert.strictEqual(v('15% of 80'), 12);
+  assert.strictEqual(v('what is (3 + 4) × 2'), 14);
+  assert.strictEqual(v('whats 12 times 7'), 84);
+  assert.strictEqual(v('square root of 81'), 9);
+  assert.strictEqual(v('2 to the power of 10'), 1024);
+  assert.strictEqual(v('200 + 10%'), 220);
+  assert.strictEqual(v('what is 1,234 + 5,678'), 6912);
+  assert.ok(Math.abs(v('5 miles in km') - 8.04672) < 1e-9);
+  assert.ok(Math.abs(v('70 f to c') - 21.1111) < 1e-3);
+  assert.strictEqual(v('-40 c in f'), -40);
+  assert.strictEqual(C.eval('how many ounces in a pound').text, '1 pound is 16 ounces.');
+  assert.strictEqual(C.eval('6 feet 2 inches in cm').text, '6 feet 2 inches is 187.96 cm.');
+  assert.strictEqual(C.eval('3 meters in kg').ok, false); // they measure different things
+  assert.strictEqual(C.eval('what is the capital of france'), null);
+  assert.strictEqual(C.eval('process.exit()'), null); // its own parser: nothing runs
+  for (const s of ['open netflix', 'volume 30', 'brightness 50%', 'play 1989 by taylor swift', 'remind me at 5:30 to leave', 'channel 7']) assert.strictEqual(C.looks(s), false, s);
+});
+
+test('Deuce works out sums, the time elsewhere, and how long until a day', () => {
+  assert.deepStrictEqual([U('what is 15% of 80').kind, U('convert 5 miles to km').kind], ['calc', 'calc']);
+  let r = U('what time is it in tokyo');
+  assert.deepStrictEqual([r.kind, r.place, r.tz], ['time', 'Tokyo', 'Asia/Tokyo']);
+  assert.strictEqual(U('time in london').tz, 'Europe/London');
+  assert.strictEqual(U('what time is it').tz, undefined);
+  r = U('how many days until christmas');
+  assert.deepStrictEqual([r.kind, r.days], ['until', 29]);
+  assert.strictEqual(U('how many days till thanksgiving', new Date(2026, 10, 20)).days, 6); // the 4th Thursday of November
+  assert.strictEqual(U('how long until june 18').days, 204);
+  assert.strictEqual(U('days until friday').days, 1);
+  assert.strictEqual(U('good morning').kind, 'brief');
+  assert.strictEqual(U('whats my day look like').kind, 'brief');
+});
+
+test('two things at once, when Deuce knows both', () => {
+  assert.deepStrictEqual(B.split('turn on dark mode and play some music', NOV).map((x) => x.kind), ['setting', 'music']);
+  assert.deepStrictEqual(B.split('open netflix then set a timer for 10 minutes', NOV).map((x) => x.kind), ['app', 'timer']);
+  assert.strictEqual(B.split('what is the capital of france and why', NOV), null); // that's a question for the brain
+  assert.strictEqual(B.split('rock and roll', NOV), null);
+});
