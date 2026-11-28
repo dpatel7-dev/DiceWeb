@@ -246,3 +246,74 @@ test('two things at once, when Deuce knows both', () => {
   assert.strictEqual(B.split('what is the capital of france and why', NOV), null); // that's a question for the brain
   assert.strictEqual(B.split('rock and roll', NOV), null);
 });
+
+// ---- 2.5.0: Oops, Lookouts, Show me how, moment reminders, Roll for it, Float, fridge notes ----
+test('Oops: "undo that" takes back the last change, and "what did I change" shows them', () => {
+  for (const s of ['oops', 'undo that', 'take it back', 'put it back', 'change it back', 'I didn\'t mean that']) assert.deepStrictEqual([U(s).kind, U(s).act], ['oops', 'undo'], s);
+  for (const s of ['what did I change', 'what changed', 'show my recent changes', 'what can I undo']) assert.deepStrictEqual([U(s).kind, U(s).act], ['oops', 'list'], s);
+  assert.strictEqual(U('go back').kind, 'back'); // still the Back button
+});
+
+test('Lookouts: games, the weather, web pages and the internet', () => {
+  let r = U('Let me know when the Knicks game starts');
+  assert.deepStrictEqual([r.kind, r.what, r.team, r.end], ['lookout', 'game', 'Knicks', false]);
+  assert.strictEqual(U('tell me when the jets game is over').end, true);
+  assert.strictEqual(U('keep an eye on the rangers').team, 'Rangers');
+  assert.deepStrictEqual([U('tell me when it stops raining').what, U('tell me when it stops raining').cond], ['weather', 'dry']);
+  assert.strictEqual(U('let me know if it snows').cond, 'snow');
+  r = U('tell me when it gets above 60 degrees');
+  assert.deepStrictEqual([r.cond, r.n], ['above', 60]);
+  assert.strictEqual(U('warn me if it drops below freezing').cond, 'freezing');
+  assert.strictEqual(U('tell me when it stops raining in new york').what, 'weather'); // a city isn't a team without a game
+  r = U('Tell me when example.com mentions tickets');
+  assert.deepStrictEqual([r.what, r.url, r.cond, r.words], ['page', 'https://example.com', 'says', 'tickets']);
+  r = U('let me know when the price on this page drops below 50');
+  assert.deepStrictEqual([r.url, r.cond, r.n], ['this', 'below', 50]);
+  assert.strictEqual(U('let me know when this page changes').cond, 'change');
+  assert.strictEqual(U('keep an eye on bestbuy.com/ps5').url, 'https://bestbuy.com/ps5');
+  assert.strictEqual(U('tell me when the internet is back').what, 'online');
+  assert.deepStrictEqual([U('tell me when pigs fly').kind, U('tell me when pigs fly').act], ['lookout', 'cant']);
+  assert.strictEqual(U('what are you keeping an eye on').act, 'list');
+  assert.deepStrictEqual([U('stop watching the knicks').act, U('stop watching the knicks').what], ['stop', 'the knicks']);
+  assert.strictEqual(U('watch the knicks game').kind, 'game'); // watching a game is still watching it
+});
+
+test('Show me how: "how do I…" about Dice lights the way; anything else is a question', () => {
+  const t = (s) => (U(s).kind === 'howto' ? U(s).topic : U(s).kind);
+  assert.strictEqual(t('How do I change the wallpaper?'), 'world');
+  assert.strictEqual(t('where do I turn on bluetooth'), 'bt');
+  assert.strictEqual(t('show me how to make the text bigger'), 'text');
+  assert.strictEqual(t('how do I pair my controller'), 'pad');
+  assert.strictEqual(t('how do I make Deuce smarter'), 'brain');
+  assert.strictEqual(t('how do I use my phone as a remote'), 'remote');
+  assert.strictEqual(t('how do I undo'), 'oops');
+  assert.strictEqual(t('how do i keep a window on top'), 'float');
+  assert.strictEqual(t('how do I cook rice'), 'ask');
+  assert.strictEqual(t('turn on bluetooth'), 'setting'); // asked to do it: it's done, not shown
+});
+
+test('reminders for a moment, not a time: "next time I open Netflix"', () => {
+  let r = U('remind me to finish the show next time I open netflix');
+  assert.deepStrictEqual([r.kind, r.what, r.at, r.on], ['remind', 'finish the show', null, { app: 'netflix' }]);
+  r = U('remind me next time I open spotify to make a playlist');
+  assert.deepStrictEqual([r.what, r.on], ['make a playlist', { app: 'spotify' }]);
+  assert.deepStrictEqual(U('remind me to check email when I\'m on the desktop').on, { place: 'desk' });
+  assert.deepStrictEqual(U('remind me to take out the trash when I turn on the tv').on, { place: 'tv' });
+  assert.strictEqual(U('remind me to call mom at 6').on, undefined);
+});
+
+test('Roll for it, Float, and fridge notes', () => {
+  assert.deepStrictEqual([U('roll for it').kind, U('roll for it').what], ['roll', 'any']);
+  assert.strictEqual(U('what should I watch').what, 'watch');
+  assert.strictEqual(U('what should i play tonight').what, 'play');
+  assert.strictEqual(U('i cant decide what to listen to').what, 'listen');
+  assert.strictEqual(U('surprise me').kind, 'roll');
+  assert.deepStrictEqual([U('float this window').kind, U('float this window').on], ['float', true]);
+  assert.strictEqual(U('keep this on top').on, true);
+  assert.strictEqual(U('stop floating').on, false);
+  assert.strictEqual(U('leave a note on the TV: Pizza in the fridge!').note, 'Pizza in the fridge!'); // as typed
+  assert.strictEqual(U('leave a note for whoever is next saying back at 6').note, 'Back at 6');
+  assert.strictEqual(U('fridge note feed the cat').note, 'Feed the cat');
+  assert.strictEqual(U('clear the note').clear, true);
+  assert.strictEqual(U('take a note buy milk').kind, 'note'); // a note for you is still a note in Notes
+});
